@@ -1,0 +1,10 @@
+# Build output
+build/
+.spm/
+*.xcodeproj
+
+# GPL-3.0 mosh artifacts — personal build only, do NOT redistribute
+Vendor/
+
+# macOS
+.DS_Store
