@@ -22,6 +22,7 @@ struct ProfileEditView: View {
     @State private var tmuxSession = "main"
     @State private var startupCommand = ""
     @State private var predictionMode = "adaptive"
+    @State private var moshLocale = "en_US.UTF-8"
 
     private var isEditing: Bool { profile != nil }
 
@@ -78,6 +79,12 @@ struct ProfileEditView: View {
                         }
                         Text("\"Always\" feels snappiest on high-latency links; \"Never\" avoids predicted-then-corrected flicker in TUIs.")
                             .font(.footnote).foregroundStyle(.secondary)
+                        Picker("Server locale", selection: $moshLocale) {
+                            Text("en_US.UTF-8").tag("en_US.UTF-8")
+                            Text("C.UTF-8").tag("C.UTF-8")
+                        }
+                        Text("Must be a UTF-8 locale that exists on the host. Use C.UTF-8 for minimal/container hosts that lack en_US.UTF-8.")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -107,6 +114,7 @@ struct ProfileEditView: View {
         tmuxAttach = p.tmuxAttach; tmuxSession = p.tmuxSession
         startupCommand = p.startupCommand ?? ""
         predictionMode = p.predictionMode
+        moshLocale = p.moshLocale
     }
 
     private func save() {
@@ -121,6 +129,7 @@ struct ProfileEditView: View {
         p.tmuxSession = tmuxSession
         p.startupCommand = startupCommand.isEmpty ? nil : startupCommand
         p.predictionMode = predictionMode
+        p.moshLocale = moshLocale
 
         switch authKind {
         case .password:

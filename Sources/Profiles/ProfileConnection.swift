@@ -23,7 +23,7 @@ enum ProfileConnection {
         cfg.initialCommand = p.initialCommand
         if p.useMosh {
             let t = MoshSessionTransport(sshConfig: cfg, moshExec: p.initialCommand,
-                                         predictionMode: p.predictionMode)
+                                         predictionMode: p.predictionMode, locale: p.moshLocale)
             t.hostKeyPrompt = hostKeyPrompt
             return t
         }

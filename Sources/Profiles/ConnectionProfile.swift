@@ -39,6 +39,7 @@ final class ConnectionProfile {
     var tmuxSession: String = "main"
     var startupCommand: String?
     var predictionMode: String = "adaptive"   // mosh --predict: adaptive | always | never
+    var moshLocale: String = "en_US.UTF-8"     // locale forced for mosh-server (must exist on host)
     var createdAt: Date = Date()
     var lastUsedAt: Date?
 

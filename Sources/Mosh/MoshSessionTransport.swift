@@ -19,14 +19,16 @@ final class MoshSessionTransport: Transport {
     private let sshConfig: SSHConfig
     private let moshExec: String?
     private let predictionMode: String
+    private let locale: String
     private let knownHosts: KnownHostsStore
     private var inner: MoshTransport?
 
     init(sshConfig: SSHConfig, moshExec: String?, predictionMode: String = "adaptive",
-         knownHosts: KnownHostsStore = .shared) {
+         locale: String = "en_US.UTF-8", knownHosts: KnownHostsStore = .shared) {
         self.sshConfig = sshConfig
         self.moshExec = moshExec
         self.predictionMode = predictionMode
+        self.locale = locale
         self.knownHosts = knownHosts
     }
 
@@ -35,7 +37,7 @@ final class MoshSessionTransport: Transport {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             do {
-                let cmd = MoshBootstrap.serverCommand(exec: self.moshExec)
+                let cmd = MoshBootstrap.serverCommand(locale: self.locale, exec: self.moshExec)
                 let output = try SSHBootstrapper.run(
                     config: self.sshConfig, command: cmd,
                     verifyHostKey: { presented in
