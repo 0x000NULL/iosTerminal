@@ -73,6 +73,8 @@ final class KeyBarView: UIInputView {
         addKey("⌫→")  { $0.keyForwardDelete() } // forward delete
         addKey("pg↑")  { $0.keyPageUp() }
         addKey("pg↓")  { $0.keyPageDown() }
+        addKey("scrl↑") { $0.keyScrollUp() }    // mouse-wheel scroll (coding agents / tmux `mouse on`)
+        addKey("scrl↓") { $0.keyScrollDown() }
         addKey("home") { $0.keyHome() }
         addKey("end")  { $0.keyEnd() }
 

@@ -36,12 +36,17 @@ final class MoshTransport: Transport {
     private var reader: Thread?
     private let writeQueue = DispatchQueue(label: "MoshTransport.write")
 
-    init(ip: String, port: String, key: String, predictionMode: String = "adaptive") {
+    init(ip: String, port: String, key: String, predictionMode: String = "adaptive",
+         cols: Int = 80, rows: Int = 24) {
         self.ip = ip
         self.port = port
         self.key = key
         self.predictionMode = predictionMode
-        winPtr.pointee = winsize(ws_row: 24, ws_col: 80, ws_xpixel: 0, ws_ypixel: 0)
+        // Start at the real screen size if it's known (the bootstrap caches the view's last
+        // reported size); mosh_main reads winPtr when the engine thread starts, so tmux attaches
+        // at the correct width instead of 80x24 → no initial wrap/clip + reflow.
+        winPtr.pointee = winsize(ws_row: UInt16(max(1, rows)), ws_col: UInt16(max(1, cols)),
+                                 ws_xpixel: 0, ws_ypixel: 0)
     }
 
     deinit { winPtr.deallocate() }

@@ -32,7 +32,22 @@ final class TerminalCoordinator: NSObject, TerminalViewDelegate {
         t.onReceive = { [weak self] bytes in self?.enqueueFeed(bytes) }
         t.onStateChange = { [weak self] s in
             self?.lastState = s
+            // The view lays out (and reports its real cols/rows) within ms, but the SSH/mosh
+            // bootstrap finishes ~seconds later — so the early sizeChanged() can land before the
+            // PTY/mosh engine exists and get dropped, leaving the server at its default 80x24
+            // (tmux then wraps/clips into the narrower phone display). Re-push the current view
+            // size the instant the session reports connected so the server matches the screen.
+            if case .connected = s { self?.pushCurrentSize() }
             self?.onState?(s)
+        }
+    }
+
+    /// Push the terminal's current cols/rows to the live transport (main thread — `getTerminal()`
+    /// reads view geometry). Safe to call repeatedly; idempotent on the server side.
+    private func pushCurrentSize() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let term = self.terminal?.getTerminal() else { return }
+            self.transport.resize(cols: term.cols, rows: term.rows)
         }
     }
 

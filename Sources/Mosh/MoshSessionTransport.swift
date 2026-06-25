@@ -22,6 +22,11 @@ final class MoshSessionTransport: Transport {
     private let locale: String
     private let knownHosts: KnownHostsStore
     private var inner: MoshTransport?
+    // The view reports its real size (sizeChanged) within ms, but `inner` isn't created until the
+    // SSH bootstrap finishes ~seconds later — so cache the last requested size and seed the mosh
+    // engine with it, otherwise that early resize is dropped and tmux stays at 80x24.
+    private var pendingCols = 0
+    private var pendingRows = 0
 
     init(sshConfig: SSHConfig, moshExec: String?, predictionMode: String = "adaptive",
          locale: String = "en_US.UTF-8", knownHosts: KnownHostsStore = .shared) {
@@ -49,8 +54,10 @@ final class MoshSessionTransport: Transport {
                     self.state = .failed("Could not parse MOSH CONNECT — check the server's locale and that rc files print nothing before the banner.")
                     return
                 }
+                let cols = self.pendingCols > 0 ? self.pendingCols : 80
+                let rows = self.pendingRows > 0 ? self.pendingRows : 24
                 let mosh = MoshTransport(ip: self.sshConfig.host, port: info.port, key: info.key,
-                                         predictionMode: self.predictionMode)
+                                         predictionMode: self.predictionMode, cols: cols, rows: rows)
                 mosh.onReceive = { [weak self] bytes in self?.onReceive?(bytes) }
                 mosh.onStateChange = { [weak self] s in self?.state = s }
                 self.inner = mosh
@@ -64,6 +71,9 @@ final class MoshSessionTransport: Transport {
     }
 
     func send(_ bytes: [UInt8]) { inner?.send(bytes) }
-    func resize(cols: Int, rows: Int) { inner?.resize(cols: cols, rows: rows) }
+    func resize(cols: Int, rows: Int) {
+        pendingCols = cols; pendingRows = rows      // seed the engine if it isn't up yet
+        inner?.resize(cols: cols, rows: rows)
+    }
     func disconnect() { inner?.disconnect() }
 }

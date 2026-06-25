@@ -22,6 +22,16 @@ final class AppTerminalView: TerminalView {
         didSet { metaModifier = (metaSticky != .off); onModifiersChanged?() }
     }
 
+    /// Whether touches are forwarded to the remote as mouse reports. OFF by default: SwiftTerm
+    /// otherwise emits an SGR/X10 mouse report on every tap/drag once a remote app turns on mouse
+    /// mode (e.g. a coding agent's TUI). It encodes a tap as button index 1 (middle click), which such
+    /// apps treat as PASTE — so tapping/scrolling was injecting on-screen text. With this false,
+    /// touches stay local (selection/scroll) and scrolling a mouse-aware app is done intentionally
+    /// via the two-finger swipe below. Flip to true to opt back into click/drag mouse input.
+    var forwardTouchesAsMouse = false {
+        didSet { allowMouseReporting = forwardTouchesAsMouse }
+    }
+
     // SwiftTerm's reset notification names are internal to the module; reference them by
     // their stable raw strings.
     private static let ctrlReset = Notification.Name("SwiftTerm.TerminalView.controlModifierReset")
@@ -51,8 +61,18 @@ final class AppTerminalView: TerminalView {
         clearsContextBeforeDrawing = true
         restoreOpaqueBackground()
         applyFontSize()
+        allowMouseReporting = forwardTouchesAsMouse   // stop tap/drag → middle-click-paste (see property)
+
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
         addGestureRecognizer(pinch)
+
+        // Two-finger vertical swipe → real mouse-wheel scroll for apps that consume mouse (agents
+        // Code, tmux with `mouse on`). Two fingers can't be confused with a tap, so this stays safe
+        // even with touch→mouse forwarding off.
+        let twoFingerScroll = UIPanGestureRecognizer(target: self, action: #selector(handleTwoFingerScroll(_:)))
+        twoFingerScroll.minimumNumberOfTouches = 2
+        twoFingerScroll.maximumNumberOfTouches = 2
+        addGestureRecognizer(twoFingerScroll)
     }
 
     // MARK: - Font size
@@ -200,6 +220,43 @@ final class AppTerminalView: TerminalView {
     func keyPaste() { paste(nil) }
 
     func scrollToBottom() { repositionVisibleFrame() }
+
+    // MARK: - Scroll (intentional wheel reports for mouse-aware apps: coding agents, tmux `mouse on`)
+
+    /// Send `lines` mouse-wheel notches to the remote in whatever mouse protocol it negotiated.
+    /// No-op unless the app actually enabled mouse reporting (otherwise the bytes are just noise).
+    /// SwiftTerm encodes wheel up = button 4 (64), wheel down = button 5 (65).
+    func sendWheel(up: Bool, lines: Int = 3) {
+        let term = getTerminal()
+        guard term.mouseMode != .off else { return }
+        let flags = term.encodeButton(button: up ? 4 : 5, release: false, shift: false, meta: false, control: false)
+        let col = max(0, term.cols / 2)
+        let row = max(0, term.rows / 2)
+        for _ in 0..<max(1, lines) {
+            term.sendEvent(buttonFlags: flags, x: col, y: row)
+        }
+    }
+
+    func keyScrollUp()   { sendWheel(up: true) }
+    func keyScrollDown() { sendWheel(up: false) }
+
+    private var wheelAccum: CGFloat = 0
+    @objc private func handleTwoFingerScroll(_ g: UIPanGestureRecognizer) {
+        guard getTerminal().mouseMode != .off else { return }   // only when the remote takes wheel input
+        switch g.state {
+        case .began:
+            wheelAccum = 0
+        case .changed:
+            wheelAccum += g.translation(in: self).y
+            g.setTranslation(.zero, in: self)
+            let step = max(12, SettingsStore.fontSize * 1.2)    // ~one wheel notch per line of travel
+            // Drag DOWN (positive) reveals earlier output → wheel up; drag UP → wheel down.
+            while wheelAccum >= step { sendWheel(up: true, lines: 1);  wheelAccum -= step }
+            while wheelAccum <= -step { sendWheel(up: false, lines: 1); wheelAccum += step }
+        default:
+            break
+        }
+    }
 
     func toggleKeyboard() {
         if isFirstResponder { _ = resignFirstResponder() } else { _ = becomeFirstResponder() }
